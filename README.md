@@ -69,6 +69,28 @@ Contiene los controladores y endpoints de FastAPI.
 
 Implementaciones concretas de persistencia, autenticación, almacenamiento, RAG y proveedores de IA.
 
+
+1. Lenin Ramon Lopez Cordova
+2. Josue Abraham Un Hernandez
+3. Kevin Javier Velazquez
+4. Kevin Alejandro Chuc
+5. Ramon Avila Mayo
+6. Joel
+
+El proyecto utiliza un flujo de trabajo basado en Git Flow simplificado.
+
+La rama main representa versiones estables y listas para entrega.
+
+La rama develop concentra la integración continua del desarrollo antes de promover cambios a producción.
+
+Las ramas feature/* permiten desarrollar funcionalidades de manera aislada, evitando afectar el código estable.
+
+Las ramas release/* se utilizan para preparar entregas académicas o versiones importantes.
+
+Las ramas hotfix/* permiten corregir errores críticos de forma rápida sin interrumpir el desarrollo principal.
+
+Este flujo facilita el trabajo colaborativo, mejora la trazabilidad de cambios y reduce riesgos durante la integración de nuevas funcionalidades.
+
 ## Ejecución Local
 
 ### Levantar servicios
