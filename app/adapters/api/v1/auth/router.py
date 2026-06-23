@@ -11,6 +11,7 @@ from app.application.dto.auth.logout_dto import LogoutDTO
 from app.application.dto.auth.forgot_password_dto import ForgotPasswordDTO
 from app.application.dto.auth.reset_password_dto import ResetPasswordDTO
 from app.application.dto.auth.verify_email_dto import VerifyEmailDTO
+from app.infrastructure.persistence.models.role_model import RoleModel
 from app.infrastructure.email.email_service import send_email
 from app.infrastructure.persistence.session import get_db
 from app.infrastructure.persistence.models.user_model import UserModel
@@ -40,14 +41,24 @@ async def register(data: RegisterDTO, db: Session = Depends(get_db)):
         
     verification_token = secrets.token_urlsafe(32)
 
+    student_role = db.query(RoleModel).filter(
+    RoleModel.name == "student"
+).first()
+
+    if not student_role:
+        raise HTTPException(
+            status_code=500,
+            detail="Rol student no encontrado"
+        )
+
     user = UserModel(
         id=str(uuid.uuid4()),
         name=data.name,
         email=data.email,
         hashed_password=hash_password(data.password),
-        role="student",
+        role_id=student_role.id,
         email_verification_token=verification_token,
-        is_verified="false"
+        is_verified=False
     )
 
     db.add(user)
@@ -90,6 +101,18 @@ async def login(data: LoginDTO, db: Session = Depends(get_db)):
             detail="Credenciales inválidas"
         )
 
+    if not user.is_verified:
+        raise HTTPException(
+            status_code=403,
+            detail="Debes verificar tu correo antes de iniciar sesión"
+        )
+
+    if user.status != "active":
+        raise HTTPException(
+            status_code=403,
+            detail="Cuenta deshabilitada"
+        )
+
     access_token = create_access_token(user.id)
     refresh_token = create_refresh_token(user.id)
 
@@ -112,7 +135,7 @@ async def login(data: LoginDTO, db: Session = Depends(get_db)):
             "id": user.id,
             "name": user.name,
             "email": user.email,
-            "role": user.role
+            "role": user.role.name if user.role else None
         }
     }
     
@@ -122,9 +145,10 @@ async def me(current_user: UserModel = Depends(get_current_user)):
         "id": current_user.id,
         "name": current_user.name,
         "email": current_user.email,
-        "role": current_user.role
+        "role": current_user.role.name if current_user.role else None
     }
-#endpoint de refresh token@router.post("/refresh")
+#endpoint de refresh token
+@router.post("/refresh")
 async def refresh(data: RefreshDTO, db: Session = Depends(get_db)):
     payload = decode_access_token(data.refresh_token)
 
@@ -148,7 +172,8 @@ async def refresh(data: RefreshDTO, db: Session = Depends(get_db)):
     user_id = payload.get("sub")
 
     user = db.query(UserModel).filter(
-        UserModel.id == user_id
+        UserModel.id == user_id,
+        UserModel.is_deleted == False
     ).first()
 
     if not user:
@@ -157,8 +182,26 @@ async def refresh(data: RefreshDTO, db: Session = Depends(get_db)):
             detail="Usuario no encontrado"
         )
 
+    if user.status != "active":
+        raise HTTPException(
+            status_code=403,
+            detail="Cuenta deshabilitada"
+        )
+
+    token_record.is_revoked = True
+
     new_access_token = create_access_token(user.id)
     new_refresh_token = create_refresh_token(user.id)
+
+    new_refresh_token_record = RefreshTokenModel(
+        id=str(uuid.uuid4()),
+        user_id=user.id,
+        token=new_refresh_token,
+        is_revoked=False
+    )
+
+    db.add(new_refresh_token_record)
+    db.commit()
 
     return {
         "access_token": new_access_token,
@@ -239,7 +282,7 @@ async def verify_email(data: VerifyEmailDTO, db: Session = Depends(get_db)):
     if not user:
         raise HTTPException(status_code=404, detail="Token de verificación inválido")
 
-    user.is_verified = "true"
+    user.is_verified = True
     user.email_verification_token = None
     db.commit()
 

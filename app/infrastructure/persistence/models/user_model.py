@@ -1,4 +1,5 @@
-from sqlalchemy import Column, String, DateTime, Boolean
+from sqlalchemy import Column, String, DateTime, Boolean, ForeignKey
+from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.infrastructure.persistence.models.database import Base
 
@@ -9,7 +10,7 @@ class UserModel(Base):
     name = Column(String, nullable=False)
     email = Column(String, unique=True, index=True, nullable=False)
     hashed_password = Column(String, nullable=False)
-    role_id = Column( String, nullable=True)
+    role_id = Column(String, ForeignKey("roles.id"), nullable=True)
     status = Column(String, default="active", nullable=False)
     avatar_url = Column(String, nullable=True)
     is_verified = Column(Boolean, default=False, nullable=False)
@@ -21,3 +22,4 @@ class UserModel(Base):
     is_deleted = Column(Boolean, default=False, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    role = relationship("RoleModel")

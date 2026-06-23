@@ -8,6 +8,7 @@ from app.application.dto.users.update_role_dto import UpdateRoleDTO
 from app.application.dto.users.change_password_dto import ChangePasswordDTO
 from app.application.dto.users.update_settings_dto import UpdateSettingsDTO
 from app.application.dto.users.update_status_dto import UpdateStatusDTO
+from app.infrastructure.persistence.models.role_model import RoleModel
 from app.infrastructure.security.password_service import hash_password, verify_password
 from app.infrastructure.persistence.models.user_settings_model import UserSettingsModel
 from app.infrastructure.persistence.models.refresh_token_model import RefreshTokenModel
@@ -21,15 +22,19 @@ router = APIRouter(
 )
 
 def require_admin(current_user: UserModel):
-    if current_user.role != "admin":
-        raise HTTPException(status_code=403, detail="Solo admin puede realizar esta acción")
-
+    if not current_user.role or current_user.role.name != "admin":
+        raise HTTPException(
+            status_code=403,
+            detail="Solo admin puede realizar esta acción"
+        )
+        
 def serialize_user(user: UserModel):
     return {
         "id": user.id,
         "name": user.name,
         "email": user.email,
-        "role": user.role,
+        "role": user.role.name if user.role else None,
+        "role_id": user.role_id,
         "status": user.status,
         "avatar_url": user.avatar_url,
         "is_verified": user.is_verified,
@@ -92,16 +97,16 @@ async def get_users_stats(
         "unverified_users": total_users - verified_users,
         "active_users": active_users,
         "suspended_users": suspended_users,
-        "students": db.query(UserModel).filter(
-            UserModel.role == "student",
-            UserModel.is_deleted == False
+        "students": db.query(UserModel).join(RoleModel).filter(
+        RoleModel.name == "student",
+        UserModel.is_deleted == False
         ).count(),
-        "teachers": db.query(UserModel).filter(
-            UserModel.role == "teacher",
-            UserModel.is_deleted == False
+        "teachers": db.query(UserModel).join(RoleModel).filter(
+        RoleModel.name == "teacher",
+        UserModel.is_deleted == False
         ).count(),
-        "admins": db.query(UserModel).filter(
-            UserModel.role == "admin",
+        "admins": db.query(UserModel).join(RoleModel).filter(
+            RoleModel.name == "admin",
             UserModel.is_deleted == False
         ).count()
     }
@@ -298,7 +303,7 @@ async def delete_my_account(
 @router.get("/by-email/{email}")
 async def get_user_by_email(email: str, db: Session = Depends(get_db), current_user: UserModel = Depends(get_current_user)):
     require_admin(current_user)
-    user = db.query(UserModel).filter(UserModel.email == email).first()
+    user = db.query(UserModel).filter(UserModel.email == email, UserModel.is_deleted == False).first()
     if not user:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
     return serialize_user(user)
@@ -363,17 +368,17 @@ async def update_user( user_id: str, data: UpdateUserDTO, db: Session = Depends(
 async def update_user_role(user_id: str, data: UpdateRoleDTO, db: Session = Depends(get_db), current_user: UserModel = Depends(get_current_user)):
     require_admin(current_user)
 
-    allowed_roles = ["student", "teacher", "admin"]
-
-    if data.role not in allowed_roles:
+    role = db.query(RoleModel).filter(RoleModel.name == data.role).first()
+    
+    if not role:
         raise HTTPException(status_code=400, detail="Rol inválido")
-
+        
     user = db.query(UserModel).filter(UserModel.id == user_id, UserModel.is_deleted == False).first()
 
     if not user:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
 
-    user.role = data.role
+    user.role_id = role.id
 
     db.commit()
     db.refresh(user)
