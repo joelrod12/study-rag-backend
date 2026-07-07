@@ -170,3 +170,74 @@ async def delete_document(
     return {
         "message": "Documento eliminado correctamente"
     }
+    
+#buscar documento por titulo
+@router.get("/search")
+async def search_documents(
+    q: str,
+    db: Session = Depends(get_db),
+    current_user: UserModel = Depends(get_current_user)
+):
+    documents = db.query(DocumentModel).filter(
+        DocumentModel.user_id == current_user.id,
+        DocumentModel.is_deleted == False,
+        DocumentModel.title.ilike(f"%{q}%")
+    ).all()
+
+    return [serialize_document(document) for document in documents]
+
+#pendiente
+@router.post("/{document_id}/process")
+async def process_document(
+    document_id: str,
+    db: Session = Depends(get_db),
+    current_user: UserModel = Depends(get_current_user)
+):
+    document = db.query(DocumentModel).filter(
+        DocumentModel.id == document_id,
+        DocumentModel.is_deleted == False
+    ).first()
+
+    if not document:
+        raise HTTPException(
+            status_code=404,
+            detail="Documento no encontrado"
+        )
+
+    if (
+        document.user_id != current_user.id
+        and current_user.role.name != "admin"
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail="No tienes permisos"
+        )
+
+    if document.is_processed:
+        raise HTTPException(
+            status_code=400,
+            detail="El documento ya fue procesado"
+        )
+
+    document.status = "processing"
+
+    db.commit()
+
+    # Aquí posteriormente irá:
+    #
+    # - Extraer texto (PyMuPDF)
+    # - Dividir en chunks
+    # - Crear embeddings
+    # - Guardar en ChromaDB
+    #
+
+    document.status = "processed"
+    document.is_processed = True
+
+    db.commit()
+    db.refresh(document)
+
+    return {
+        "message": "Documento procesado correctamente",
+        "document": serialize_document(document)
+    }
