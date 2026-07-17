@@ -9,6 +9,9 @@ from app.infrastructure.database.base import Base
 
 # Import all SQLAlchemy models here
 from app.infrastructure.database.models.document_model import DocumentModel
+from app.infrastructure.database.models.study_room_model import (
+    StudyRoomModel,
+)
 
 config = context.config
 
