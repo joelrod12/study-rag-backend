@@ -80,3 +80,17 @@ class ChromaVectorStore(VectorStorePort):
                 results["distances"][0],
             )
         ]
+
+    def delete_document(
+        self,
+        document_id: str,
+    ) -> None:
+        """
+        Deletes every chunk associated with a document.
+        """
+
+        self._collection.delete(
+            where={
+                "document_id": document_id,
+            }
+        )
